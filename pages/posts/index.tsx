@@ -1,14 +1,31 @@
 import Head from 'next/head'
 import Image from 'next/image'
-
-import styles from './style.module.scss'
-
-import thumb from '../../public/images/webDev.png'
+import { GetStaticProps } from 'next'
 import Link from 'next/link'
-
 import { FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight } from "react-icons/fi";
+import styles from './style.module.scss'
+import { useState } from 'react'
+import { getPrismicClient } from './../../../blogcamacho/services/prismic';
+import Prismic from '@prismicio/client'
 
-export default function Posts() {
+
+import { RichText } from "prismic-dom";
+
+type Post = {
+    slug: string;
+    title: string;
+    cover: string;
+    description: string;
+    updatedAt: string;
+}
+
+interface PostsProps {
+    posts: Post[];
+}
+
+export default function Posts({ posts: postsBlog }: PostsProps) {
+
+    const [posts, setPosts] = useState(postsBlog || [])
 
     return (
         <>
@@ -18,15 +35,22 @@ export default function Posts() {
 
             <main className={styles.container}>
                 <div className={styles.posts}>
-                    <Link href='/'>
-                        <Image src={thumb} width={720}
-                        height={410}
-                        quality={100} alt={'img'} priority/>
-                        <strong>Criando meu primeiro app</strong>
-                        <time>14 JULHO 2021</time>
-                        <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Laborum odio, 
-                            quaerat dicta excepturi consequatur suscipit </p>
-                    </Link>
+                    {posts.map(post => (
+                        <Link key={post.slug} href='/'>
+                            <Image src={post.cover}
+                                width={720}
+                                height={410}
+                                quality={100}
+                                alt={post.title}
+                                priority
+                                placeholder='blur'
+                                blurDataURL='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcS
+                                JAAAADUlEQVR42mNUkFeoBwABpgDgVDZbCgAAAABJRU5ErkJggg==' />
+                            <strong>{post.title}</strong>
+                            <time>{post.updatedAt}</time>
+                            <p>{post.description}</p>
+                        </Link>
+                    ))}
 
                     <div className={styles.buttonNavigate}>
                         <div>
@@ -50,4 +74,40 @@ export default function Posts() {
             </main>
         </>
     )
+}
+
+
+export const getStaticProps: GetStaticProps = async () => {
+    const prismic = getPrismicClient();
+
+    const response = await prismic.query([
+        Prismic.predicates.at('document.type', 'post')
+    ], {
+        orderings: '[document.last_publication_date desc]',
+        fetch: ['post.title', 'post.description', 'post.cover'],
+        pageSize: 3
+    });
+
+    const posts = response.results.map((post => {
+
+        let dateUp = post.last_publication_date || ''
+        let update = new Date(dateUp).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+        })
+        return {
+            slug: post.uid,
+            title: RichText.asText(post.data.title),
+            description: post.data.description.find((content: { type: string; }) => content.type === 'paragraph').text ?? '',
+            cover: post.data.cover.url || '',
+            updatedAt: update
+        }
+    }))
+    return {
+        props: {
+            posts,
+        },
+        revalidate: 60 * 30
+    }
 }
