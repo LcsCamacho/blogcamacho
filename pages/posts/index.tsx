@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight } from "react-icons/fi";
 import styles from './style.module.scss'
 import { useState } from 'react'
-import { getPrismicClient } from './../../../blogcamacho/services/prismic';
+import { getPrismicClient } from '../../services/prismic';
 import Prismic from '@prismicio/client'
 
 
