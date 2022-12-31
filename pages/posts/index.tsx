@@ -21,11 +21,51 @@ type Post = {
 
 interface PostsProps {
     posts: Post[];
+    page: string;
+    totalPage: string;
 }
 
-export default function Posts({ posts: postsBlog }: PostsProps) {
-
+export default function Posts({ posts: postsBlog, page, totalPage }: PostsProps) {
+    const [currentPage, setCurrentPage] = useState(Number(page))
     const [posts, setPosts] = useState(postsBlog || [])
+
+    async function reqPost(pageNumber: Number) {
+        const prismic = getPrismicClient();
+
+        const response = await prismic.query([
+            Prismic.predicates.at('document.type', 'post')
+        ], {
+            orderings: '[document.last_publication_date desc]',
+            fetch: ['post.title', 'post.description', 'post.cover'],
+            pageSize: 3,
+            page: String(pageNumber)
+        });
+
+        return response
+    }
+    async function navigatePage(pageNumber: Number) {
+        const response = await reqPost(pageNumber);
+
+        if(response.results.length === 0) {
+            return;
+        }
+
+        const getPosts = response.results.map((post => {
+            return {
+                slug: post.uid || '',
+                title: RichText.asText(post.data.title),
+                description: post.data.description.find((content: { type: string; }) => content.type === 'paragraph').text ?? '',
+                cover: post.data.cover.url || '',
+                updatedAt: new Date(post.last_publication_date || '').toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric'
+                })
+            }
+        }))
+        setCurrentPage(Number(pageNumber))
+        setPosts(getPosts)
+    }
 
     return (
         <>
@@ -36,7 +76,7 @@ export default function Posts({ posts: postsBlog }: PostsProps) {
             <main className={styles.container}>
                 <div className={styles.posts}>
                     {posts.map(post => (
-                        <Link key={post.slug} href='/'>
+                        <Link key={post.slug} href={`/posts/${post.slug}`}>
                             <Image src={post.cover}
                                 width={720}
                                 height={410}
@@ -53,22 +93,26 @@ export default function Posts({ posts: postsBlog }: PostsProps) {
                     ))}
 
                     <div className={styles.buttonNavigate}>
-                        <div>
-                            <button>
-                                <FiChevronLeft size={25} color='#FFF' />
-                            </button>
-                            <button>
-                                <FiChevronsLeft size={25} color='#FFF' />
-                            </button>
-                        </div>
-                        <div>
-                            <button>
-                                <FiChevronRight size={25} color='#FFF' />
-                            </button>
-                            <button>
-                                <FiChevronsRight size={25} color='#FFF' />
-                            </button>
-                        </div>
+                        {Number(currentPage) >= 2 && (
+                            <div>
+                                <button onClick={() => navigatePage(Number(1))} >
+                                    <FiChevronLeft size={25} color='#FFF' />
+                                </button>
+                                <button onClick={() => navigatePage(Number(currentPage - 1))} >
+                                    <FiChevronsLeft size={25} color='#FFF' />
+                                </button>
+                            </div>
+                        )}
+                        {Number(currentPage) < Number(totalPage) && (
+                            <div>
+                                <button onClick={() => navigatePage(Number(currentPage + 1))} >
+                                    <FiChevronRight size={25} color='#FFF' />
+                                </button>
+                                <button onClick={() => navigatePage(Number(totalPage))} >
+                                    <FiChevronsRight size={25} color='#FFF' />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
@@ -90,23 +134,23 @@ export const getStaticProps: GetStaticProps = async () => {
 
     const posts = response.results.map((post => {
 
-        let dateUp = post.last_publication_date || ''
-        let update = new Date(dateUp).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric'
-        })
         return {
             slug: post.uid,
             title: RichText.asText(post.data.title),
             description: post.data.description.find((content: { type: string; }) => content.type === 'paragraph').text ?? '',
             cover: post.data.cover.url || '',
-            updatedAt: update
+            updatedAt: new Date(post.last_publication_date || '').toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            })
         }
     }))
     return {
         props: {
             posts,
+            page: response.page,
+            totalPage: response.total_pages
         },
         revalidate: 60 * 30
     }

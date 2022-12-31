@@ -8,14 +8,14 @@ interface ActiveLinkProps extends LinkProps{
     activeClassName: String;
 }
 
-export function ActiveLink({ children, activeClassName, ...rest }) {
+export function ActiveLink({ children, activeClassName, ...rest }:ActiveLinkProps) {
     
     const { asPath } = useRouter()
 
     const className = asPath === rest.href ? activeClassName : ''
  
     return (
-        <Link href={''} {...rest}>
+        <Link {...rest}>
             {cloneElement(children, {
                 className
             })}
